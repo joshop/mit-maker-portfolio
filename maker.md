@@ -18,15 +18,15 @@ For easy prototyping, the first version was built on a breadboard. It incorporat
 
 In order to program the EEPROM, as opposed to purchasing an expensive dedicated programmer, I designed one using an Arduino:
 
-image
+`eeprom_programmer.png - Image of EEPROM programmer on breadboard, labeled`
 
 This allowed me to assemble 6502 assembly using `ca65`, flash it to the EEPROM and have it executed on the computer. In order to construct the device, I had to reference [datasheets](https://www.westerndesigncenter.com/wdc/documentation/w65c02s.pdf) on each of the ICs - for instance, this:
 
-image
+`ic_datasheets.png - Datasheet of 65C02 chip, screenshot`
 
 It took a few days to construct and debug the breadboard prototype, but it eventually worked:
 
-image
+`sn8k_breadboard.png - SN8K assembled on breadboard and labeled`
 
 The 8-bit register (labeled as "Flip flops") can be accessed by writes to the upper half of memory (addresses `$8000-$FFFF`, where the EEPROM is accessed through reads), and in this case holds the value `$55` that was written through code.
 
@@ -126,17 +126,17 @@ A pushbutton was wired to the NMI pin (pin 6) of the 65C02 microprocessor, and a
 
 However, the system was prone to wires coming out of the breadboard, so I decided to move future development to a printed circuit board. I used the KiCad EDA tool to design the schematic for the system and the physical PCB design:
 
-image
+`sn8k_schematic.png - KiCad schematic view`
 
-image
+`sn8k_pcbnew.png - KiCad PCB view`
 
 After checking the design, I put in the PCB for fabrication at the fabrication service [OSH Park](https://oshpark.com/). I soldered the components used in the breadboard design into the PCB.
 
-image
+`sn8k_pcb_assembled.png - Assembled SN8K on PCB, revision 1, labeled`
 
 The design mostly worked; however, I had inadvertently mapped the 16 registers used by the VIA into space also mapped by the SRAM chip. If the system read from one of those addresses, it would cause a bus conflict and possibly damage hardware due to overcurrent. This necessitated a second revision (in which I also repositioned some of the connectors):
 
-image
+`sn8k_pcbnew_rev2.png - Revision 2 KiCad PCB view`
 
 \<TODO\>
 
@@ -176,9 +176,9 @@ The four/five types are:
 
 In order to create the levels, I developed a GUI tool that supported this format natively:
 
-image
+`brim_editor1.png - GUI editor displaying a basic level`
 
-image
+`brim_editor2.png - GUI editor with more UI elements visible`
 
 With that done, I looked to developing other components of the game:
 * Since the level data was stored compressed, decompression must happen at runtime on a very slow system, which also necessitated a very optimized decompression algorithm.
@@ -189,7 +189,8 @@ With that done, I looked to developing other components of the game:
 
 The final engine uses about 8 kilobytes of space. This leaves the remaining 24 kilobytes for a prospective game and its data and objects. Of the available 2 kilobytes of RAM in the system, this engine uses about half of it, once again leaving the remainder for any game that leverages the engine.
 
-images
+`brimstone1.png - Game characters on platforms with UI`
+`brimstone2.png - Mesen debug windows to analyze performance`
 
 ## SNES Hardware Repair Project
 
@@ -197,7 +198,7 @@ After I received a non-functional Super Nintendo Entertainment System (video gam
 
 When I initially tried to load a game using it - in this case, the 1994 game *Donkey Kong Country* - I was met with only a black screen, which could imply a catastrophic failure that can't be recovered. For instance, fried components might not exist on the market anymore, and transistor level damage is completely impossible to repair. However, given that the system had worked previously, I wanted to look further into it. Sure enough, the related *Donkey Kong Country 2* gave me different results:
 
-image
+`snes_dkc2.png - Anti-piracy screen from DKC2`
 
 Clearly, the CPU, RAM and graphics hardware have at least minimal functionality, and no essential components are totally destroyed. The conditions under which this "anti-piracy" screen is displayed can be found from a [disassembly of the game](https://github.com/p4plus2/DKC2-disassembly/tree/master): 
 ```
@@ -212,22 +213,22 @@ Clearly, the CPU, RAM and graphics hardware have at least minimal functionality,
 ```
 One of these conditions is that the save data RAM chip (SRAM) is present. The save data memory area is located at memory address `$B06000`, while the code above is located around memory address `$808436`. Therefore, a hardware fault in the upper address pins A22-A20 would allow code at `$808436` to execute, while accesses to memory at `$B06000` fail. Testing this hypothesis, I removed and cleaned the [cartridge connector](https://snes.nesdev.org/wiki/Cartridge_connector) (the adapter that the game uses to communicate with the console), and used a continuity tester to confirm that all pins were functional:
 
-image
+`snes_multimeter.png - Testing pins on the cartridge connector with a multimeter`
 
 Unfortunately, this did not solve the problem. I attempted to use electrical tape to "mask" off pins on the connector to determine if a fault in any of these pins (here simulated using the electrical tape) resulted in the same effect as I observed, but it became clear that the issue was not a simple continuity issue, but instead something more difficult to resolve.
 
 The next step was to observe the workings of the system at a CPU level and note any discrepancies. To this end, I purchased a logic analyzer - essentially an oscilloscope specifically intended for measuring 5V logic signals. Wires connected to the logic analyzer could be held in place by pressure from the connector, allowing me to "hook in" to the communication between the game and console:
 
-image
+`snes_hookin.png - Hooking in to the cartridge connector with a logic analyzer`
 
 I could now record the bytes that were being read, written and executed by the CPU (more specifically, a 65816 running at 3.58MHz) by logging the contents of the address bus. The logic analyzer was limited to eight digital channels, while the system had 24 address pins, 8 data pins and several other control signals that were necessary for discerning the operation of the CPU - clock and read/write signals, for instance. Thus, it was necessary to record data over several runs and match it up:
 
-image
+`snes_saleae1.png - One run of the logic analyzer`
 
-image
+`snes_saleae2.png - Another logic analyzer run, but matched up to the one from before`
 
 I determined that at TODO TIME after the RESET button was released, a given code sequence reliably executes, and I began my analysis there.
 
-image
+`snes_instructions.png - Annotated list of CPU instructions executed by the SNES`
 
 \<TODO\>
