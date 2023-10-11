@@ -54,10 +54,10 @@ checkDivisible_loop:
     cmp temp1
     beq checkDivisible_yes
     bcc checkDivisible_loop
-    lda #$00
+    lda #00
     rts
 checkDivisible_yes:
-    lda #$ff
+    lda #ff
     rts
 isPrime:
     ; checks if x is prime
@@ -65,24 +65,24 @@ isPrime:
     ; preserves x and y
     ; clobbers a and flags, temp1 and temp2
     txa
-    and #$01
+    and #01
     beq isPrime_odd
 isPrime_composite:
-    lda #$00
+    lda #00
     rts
 isPrime_odd:
-    lda #$03
+    lda #03
 isPrime_loop:
     pha
     jsr checkDivisible
     bne isPrime_composite
     pla
     clc
-    adc #$02
+    adc #02
     stx temp1
     cmp temp1
     bcc isPrime_loop
-    lda #$ff
+    lda #ff
     rts
 findNextPrime:
     ; finds the next prime after cur_prime and puts it in cur_prime
@@ -99,7 +99,7 @@ findNextPrime_finished:
 nmi:
     jsr findNextPrime
     lda cur_prime
-    sta $ffff
+    sta ffff
     rti
 
 irq:
@@ -108,11 +108,11 @@ irq:
 reset:
     sei
     cld
-    ldx #$ff
+    ldx #ff
     txs
-    lda #$02
+    lda #02
     sta cur_prime
-    sta $ffff
+    sta ffff
 endless:
     jmp endless
 
@@ -145,7 +145,7 @@ The design mostly worked; however, I had inadvertently mapped the 16 registers u
 
 The NES was a video game system that first released in 1983 in Japan. The first games developed for it were limited to 32 kilobytes of code space. I developed a game engine that ran under this same limitation, both to gain an appreciation for the history of computing and learn how to work under constrained environments, like those present in embedded systems. 
 
-The most pressing issue is reducing the space footprint of game level data. If a standard game has 16 levels or stages, each level contains 8 "screens" worth of gameplay, and each screen is 16x16 "tiles", each one represented by a single byte, the game will use $16*8*16*16=32768$ bytes for its level data, which leaves no space at all for program code! To get around this, I developed a custom compression algorithm.
+The most pressing issue is reducing the space footprint of game level data. If a standard game has 16 levels or stages, each level contains 8 "screens" worth of gameplay, and each screen is 16x16 "tiles", each one represented by a single byte, the game will use `16*8*16*16=32768` bytes for its level data, which leaves no space at all for program code! To get around this, I developed a custom compression algorithm.
 
 Although in a game each level will span many "screens", game objects will:
 * Often exist in very similar forms (rectangular blocks, or repeated patterns)
