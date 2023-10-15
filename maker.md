@@ -1,6 +1,6 @@
 # Maker Portfolio - Josh Piety
-## Starblazer II - 3D Video Game for DOS & Windows
-I was one of two lead developers on Starblazer II, a 3D space shooter video game inspired by games like Star Fox. Since the game was designed to run on very old hardware, and through DOS, the game engine had to be custom created.
+## Starblazer games - 3D Video Game for DOS & Windows
+I was one of two lead developers on Starblazer and Starblazer II, a 3D space shooter video game inspired by games like Star Fox. Since the game was designed to run on very old hardware, and through DOS, the game engine had to be custom created.
 
 <TODO\>
 
@@ -22,11 +22,11 @@ In order to program the EEPROM, as opposed to purchasing an expensive dedicated 
 
 This allowed me to assemble 6502 assembly using `ca65`, flash it to the EEPROM and have it executed on the computer. In order to construct the device, I had to reference [datasheets](https://www.westerndesigncenter.com/wdc/documentation/w65c02s.pdf) on each of the ICs - for instance, this:
 
-`ic_datasheets.png - Datasheet of 65C02 chip, screenshot`
+![Datasheet of 65C02 chip, screenshot](ic_datasheets.png)
 
 It took a few days to construct and debug the breadboard prototype, but it eventually worked:
 
-`sn8k_breadboard.png - SN8K assembled on breadboard and labeled`
+![SN8K assembled on breadboard and labeled](sn8k_breadboard.png)
 
 The 8-bit register (labeled as "Flip flops") can be accessed by writes to the upper half of memory (addresses `$8000-$FFFF`, where the EEPROM is accessed through reads), and in this case holds the value `$55` that was written through code.
 
@@ -126,9 +126,9 @@ A pushbutton was wired to the NMI pin (pin 6) of the 65C02 microprocessor, and a
 
 However, the system was prone to wires coming out of the breadboard, so I decided to move future development to a printed circuit board. I used the KiCad EDA tool to design the schematic for the system and the physical PCB design:
 
-`sn8k_schematic.png - KiCad schematic view`
+![KiCad schematic view](sn8k_schematic.png)
 
-`sn8k_pcbnew.png - KiCad PCB view`
+![KiCad PCB view](sn8k_pcbnew.png)
 
 After checking the design, I put in the PCB for fabrication at the fabrication service [OSH Park](https://oshpark.com/). I soldered the components used in the breadboard design into the PCB.
 
@@ -136,10 +136,7 @@ After checking the design, I put in the PCB for fabrication at the fabrication s
 
 The design mostly worked; however, I had inadvertently mapped the 16 registers used by the VIA into space also mapped by the SRAM chip. If the system read from one of those addresses, it would cause a bus conflict and possibly damage hardware due to overcurrent. This necessitated a second revision (in which I also repositioned some of the connectors):
 
-`sn8k_pcbnew_rev2.png - Revision 2 KiCad PCB view`
-
-\<TODO\>
-
+![Revision 2 KiCad PCB view](sn8k_pcbnew_rev2.png)
 
 ## Brimstone: Game engine for NES for 32KB development
 
@@ -176,11 +173,9 @@ The four/five types are:
 
 In order to create the levels, I developed a GUI tool that supported this format natively:
 
-`brim_editor1.png - GUI editor displaying a basic level`
+![GUI editor displaying a basic level](brim_editor.png)
 
-`brim_editor2.png - GUI editor with more UI elements visible`
-
-With that done, I looked to developing other components of the game:
+With that done, I looked to developing other components of the game engine:
 * Since the level data was stored compressed, decompression must happen at runtime on a very slow system, which also necessitated a very optimized decompression algorithm.
 * The majority of the game code was written in [Millfork](https://github.com/KarolS/millfork), a new "middle-level" language specifically designed for this application. It was much more convenient than assembly language without sacrificing control over low-level parameters like memory layout, which on a constrained system is crucial. At the time I started this project, there were no good C compiler toolchains for this architecture. Components like decompression and frequently used macros were written in assembly.
 * Video memory (VRAM) can only be accessed during the short time at the beginning and end of each frame when the video chip is not using it to draw to the screen ("vblank"). This meant I had to precompute the "updates" that needed to be made to the screen as the player moved through a level and uncovered new objects. As soon as this window of time started, the updates could be put into place.
@@ -190,6 +185,7 @@ With that done, I looked to developing other components of the game:
 The final engine uses about 8 kilobytes of space. This leaves the remaining 24 kilobytes for a prospective game and its data and objects. Of the available 2 kilobytes of RAM in the system, this engine uses about half of it, once again leaving the remainder for any game that leverages the engine.
 
 `brimstone1.png - Game characters on platforms with UI`
+
 `brimstone2.png - Mesen debug windows to analyze performance`
 
 ## SNES Hardware Repair Project
@@ -231,4 +227,4 @@ I determined that at TODO TIME after the RESET button was released, a given code
 
 `snes_instructions.png - Annotated list of CPU instructions executed by the SNES`
 
-\<TODO\>
+Unfortunately, at this point, it was clear that while the CPU was clearly functional at some level, the problem with the system as a whole was probably not localized into an easy-to-repair component. I realized this was possible from the start, but the inconsistent behavior of the CPU makes it more certain.
