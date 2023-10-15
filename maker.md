@@ -184,9 +184,11 @@ With that done, I looked to developing other components of the game engine:
 
 The final engine uses about 8 kilobytes of space. This leaves the remaining 24 kilobytes for a prospective game and its data and objects. Of the available 2 kilobytes of RAM in the system, this engine uses about half of it, once again leaving the remainder for any game that leverages the engine.
 
-`brimstone1.png - Game characters on platforms with UI`
+![Game characters on platforms with UI](brimstone1.png)
 
-`brimstone2.png - Mesen debug windows to analyze performance`
+The development, and debugging, of the game engine, was supported greatly by the development tools of the NES emulator, in this case a program called Mesen, that was used to test the engine. Mesen supplies a large amount of debug/technical information that can be used to analyze program behavior and optimize performance. While the underlying system is obviously quite different, this information is presented in a structure very similar to that presented by modern analysis tools, such as `gdb` or `gprof`:
+
+![Mesen debug windows to analyze performance](brimstone2.png)
 
 ## SNES Hardware Repair Project
 
