@@ -1,8 +1,24 @@
 # Maker Portfolio - Josh Piety
 ## Starblazer games - 3D Video Game for DOS & Windows
-I was one of two lead developers on Starblazer and Starblazer II, a 3D space shooter video game inspired by games like Star Fox. Since the game was designed to run on very old hardware, and through DOS, the game engine had to be custom created.
+I was one of two lead developers on Starblazer and Starblazer II, 3D retro space shooter video games inspired by games like Star Fox. Since the game was designed to run on very old hardware, and through DOS, the game engine had to be custom created. Subsequent versions of the project incorporated more sophisticated graphical and logic techniques, such as using quaternions to model spatial rotation and using pulse-width modulated sound to allow for higher quality audio output.
 
-<TODO\>
+Notes - ordering
+* starblazer i - sound code, vector scaling, most 3D too slow due to matmuls and bad FPU hardware, sprite scaling
+
+The first version of Starblazer was written for MS-DOS, and was intended to be a simple 3D space shooter, based off of the [Star Wars 1983 arcade game](https://en.wikipedia.org/wiki/Star_Wars_(1983_video_game)). The player would fly through space and down a tunnel, firing at enemies that approach them, and attempt to survive as long as possible. Although a simple task for a modern game engine running on current hardware, the stated goal of the project was to create a final game that would run on 80386 CPUs running MS-DOS, meaning that 3D graphic code had to be written from the ground up with a focus on performance. Initially, we attempted to create a wireframe rendering engine that rotated and projected points in 3D space before displaying them. 
+
+`Early starblazer wireframe cube image`
+
+However, the multiple matrix multiplications (as shown below) required to compute the screen locations of 3D points made our implementation of this approach too slow for the target hardware. Additionally, as it was not certain that floating-point hardware would be present on the target machine, floating-point operations had to be performed in software, further reducing speed.
+
+`Matmuls`
+
+
+* early starblazer ii - first 3d vector calculations, combined rotation matrices and inline assembly matmul for speed, used fixed point, wireframe graphics
+* serialblazer era - early multiplayer experiments, further enhancements to the game engine, discovered gimbal lock problems while creating in-engine cutscenes
+* modern starblazer ii - more organized code, version control, ports to different platforms (eg linux for development use), designed to run on older versions of windows so still limited, dos port
+* modern starblazer ii, part 2 - using quaternions for rotation to solve gimbal lock problem and make rotation control easier, polygon fill and painter's algorithm, simple directional lighting algorithm, back-face culling
+* starblazer dx - revisiting the original formula, new PWM sound code using physical properties of speaker, full 3d, smoother controls - using our knowledge to improve the thing that started it all
 
 ## SuperNova 8000 - Custom 8-bit computer constructed on breadboard and PCB
 
@@ -18,7 +34,7 @@ For easy prototyping, the first version was built on a breadboard. It incorporat
 
 In order to program the EEPROM, as opposed to purchasing an expensive dedicated programmer, I designed one using an Arduino:
 
-`eeprom_programmer.png - Image of EEPROM programmer on breadboard, labeled`
+![Image of EEPROM programmer on breadboard, labeled](eeprom_programmer.png)
 
 This allowed me to assemble 6502 assembly using `ca65`, flash it to the EEPROM and have it executed on the computer. In order to construct the device, I had to reference [datasheets](https://www.westerndesigncenter.com/wdc/documentation/w65c02s.pdf) on each of the ICs - for instance, this:
 
@@ -30,7 +46,7 @@ It took a few days to construct and debug the breadboard prototype, but it event
 
 The 8-bit register (labeled as "Flip flops") can be accessed by writes to the upper half of memory (addresses `$8000-$FFFF`, where the EEPROM is accessed through reads), and in this case holds the value `$55` that was written through code.
 
-Real computation is possible with this design, too. I wrote a program that checks if numbers are prime:
+In order to demonstrate that this simple design could perform computation, I wrote a proof-of-concept program that checks if numbers are prime:
 ```
 .segment "ZEROPAGE"
 ; zp variables here
@@ -132,7 +148,7 @@ However, the system was prone to wires coming out of the breadboard, so I decide
 
 After checking the design, I put in the PCB for fabrication at the fabrication service [OSH Park](https://oshpark.com/). I soldered the components used in the breadboard design into the PCB.
 
-`sn8k_pcb_assembled.png - Assembled SN8K on PCB, revision 1, labeled`
+![Assembled SN8K on PCB, revision 1, labeled](sn8k_pcb_assembled.png)
 
 The design mostly worked; however, I had inadvertently mapped the 16 registers used by the VIA into space also mapped by the SRAM chip. If the system read from one of those addresses, it would cause a bus conflict and possibly damage hardware due to overcurrent. This necessitated a second revision (in which I also repositioned some of the connectors):
 
@@ -196,7 +212,7 @@ After I received a non-functional Super Nintendo Entertainment System (video gam
 
 When I initially tried to load a game using it - in this case, the 1994 game *Donkey Kong Country* - I was met with only a black screen, which could imply a catastrophic failure that can't be recovered. For instance, fried components might not exist on the market anymore, and transistor level damage is completely impossible to repair. However, given that the system had worked previously, I wanted to look further into it. Sure enough, the related *Donkey Kong Country 2* gave me different results:
 
-`snes_dkc2.png - Anti-piracy screen from DKC2`
+![Anti-piracy screen from DKC2](snes_dkc2.png)
 
 Clearly, the CPU, RAM and graphics hardware have at least minimal functionality, and no essential components are totally destroyed. The conditions under which this "anti-piracy" screen is displayed can be found from a [disassembly of the game](https://github.com/p4plus2/DKC2-disassembly/tree/master): 
 ```
@@ -209,24 +225,26 @@ Clearly, the CPU, RAM and graphics hardware have at least minimal functionality,
 	DEC A					    ;$808447   |\ Restore byte modified
 	STA.l sram_base				;$808448   |/
 ```
-One of these conditions is that the save data RAM chip (SRAM) is present. The save data memory area is located at memory address `$B06000`, while the code above is located around memory address `$808436`. Therefore, a hardware fault in the upper address pins A22-A20 would allow code at `$808436` to execute, while accesses to memory at `$B06000` fail. Testing this hypothesis, I removed and cleaned the [cartridge connector](https://snes.nesdev.org/wiki/Cartridge_connector) (the adapter that the game uses to communicate with the console), and used a continuity tester to confirm that all pins were functional:
-
-`snes_multimeter.png - Testing pins on the cartridge connector with a multimeter`
+One of these conditions is that the save data RAM chip (SRAM) is present. The save data memory area is located at memory address `$B06000`, while the code above is located around memory address `$808436`. Therefore, a hardware fault in the upper address pins A22-A20 would allow code at `$808436` to execute, while accesses to memory at `$B06000` fail. Testing this hypothesis, I removed and cleaned the [cartridge connector](https://snes.nesdev.org/wiki/Cartridge_connector) (the adapter that the game uses to communicate with the console), and used a continuity tester to confirm that all pins were functional.
 
 Unfortunately, this did not solve the problem. I attempted to use electrical tape to "mask" off pins on the connector to determine if a fault in any of these pins (here simulated using the electrical tape) resulted in the same effect as I observed, but it became clear that the issue was not a simple continuity issue, but instead something more difficult to resolve.
 
 The next step was to observe the workings of the system at a CPU level and note any discrepancies. To this end, I purchased a logic analyzer - essentially an oscilloscope specifically intended for measuring 5V logic signals. Wires connected to the logic analyzer could be held in place by pressure from the connector, allowing me to "hook in" to the communication between the game and console:
 
-`snes_hookin.png - Hooking in to the cartridge connector with a logic analyzer`
+![Hooking in to the cartridge connector with a logic analyzer](snes_hookin.png)
 
 I could now record the bytes that were being read, written and executed by the CPU (more specifically, a 65816 running at 3.58MHz) by logging the contents of the address bus. The logic analyzer was limited to eight digital channels, while the system had 24 address pins, 8 data pins and several other control signals that were necessary for discerning the operation of the CPU - clock and read/write signals, for instance. Thus, it was necessary to record data over several runs and match it up:
 
-`snes_saleae1.png - One run of the logic analyzer`
+![One run of the logic analyzer](snes_saleae1.png)
 
-`snes_saleae2.png - Another logic analyzer run, but matched up to the one from before`
+![Another logic analyzer run, but matched up to the one from before](snes_saleae2.png)
 
-I determined that at TODO TIME after the RESET button was released, a given code sequence reliably executes, and I began my analysis there.
+I determined that at 121.024958 milliseconds after the RESET button was released, a given code sequence reliably executes, and I began my analysis there.
+![Annotated list of CPU instructions executed by the SNES](snes_instructions.png)
 
-`snes_instructions.png - Annotated list of CPU instructions executed by the SNES`
+As was determined from the logic analyzer traces (green cells in the listing representing bus values that were confirmed by the logic analyzer), the CPU executes up to the `CMP.l sram_base` instruction detailed above without any irregularities. The values read from memory are consistent with bytes that would cause the `BNE` to *not* be taken - that is, the piracy check passing and the game starting.
+At that point, inspection of the trace doesn't show the CPU executing the `BNE` instruction yet. A period of a few CPU cycles passes where the bus contents aren't well defined, but contain spikes shorter than 1 CPU cycle such as these (which were also occasionally observed earlier):
 
-Unfortunately, at this point, it was clear that while the CPU was clearly functional at some level, the problem with the system as a whole was probably not localized into an easy-to-repair component. I realized this was possible from the start, but the inconsistent behavior of the CPU makes it more certain.
+![A logic analyzer trace with a spike in it](snes_spikes.png)
+
+After this period of time, the CPU resumes execution consistent with the `BNE` *being taken*. Thus, either the values read from memory were corrupted somehow, or during this anomalous period, the register/flag contents were changed.
