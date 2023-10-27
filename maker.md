@@ -4,19 +4,19 @@ I was one of two lead developers on Starblazer and Starblazer II, 3D retro space
 
 The first version of Starblazer was written for MS-DOS, and was intended to be a simple 3D space shooter, based off of the [Star Wars 1983 arcade game](https://en.wikipedia.org/wiki/Star_Wars_(1983_video_game)). The player would fly through space and down a tunnel, firing at enemies that approach them, and attempt to survive as long as possible. Although a simple task for a modern game engine running on current hardware, the stated goal of the project was to create a final game that would run on 80386 CPUs running MS-DOS, meaning that 3D graphic code had to be written from the ground up with a focus on performance. Initially, we attempted to create a wireframe rendering engine that rotated and projected points in 3D space before displaying them. 
 
-`Early starblazer wireframe cube image`
+![Wireframe cube](sb1_cube.png)
 
 However, the multiple matrix multiplications (as shown below) required to compute the screen locations of 3D points made our implementation of this approach too slow for the target hardware. Additionally, as it was not certain that floating-point hardware would be present on the target machine, floating-point operations had to be performed in software, further reducing speed.
 
-`Matmuls`
+![3D rotation matrices](sb1_matmul.png)
 
 We opted to use "flat" two-dimensional vector sprites for enemies and collectible objects, and scale the coordinates of the 2D vectors as they approached the player to simulate a perspective effect. Due to a fixed viewpoint and thus no rotation calculations, this approach was much faster. The transformed points could be then be connected with a Bresenham line-drawing algorithm.
 
-`Starblazer I demo`
+![sb1_demo.png](sb1_demo.png)
 
 As part of the limited target system hardware, provisions were only included for a single square-wave [PC speaker](https://en.wikipedia.org/wiki/PC_speaker), limiting the potential game music to simple beep and tones. We attempted to circumvent this by pulse-width modulating the speaker's state at a regular interval and produce an approximation of digital audio signals. While this consumed a large amount of CPU execution time repeatedly adjusting the duty cycle, it allowed for more complex sounds - such as a combination of many waveforms - to be emulated on the simple sound hardware. It was even possible to play waveform audio read from a file, although this in practice required too much disk space for the target machine to reasonably handle.
 
-`Another SB1 demo`
+![sb1_demo2.png](sb1_demo2.png)
 
 After creating Starblazer, we started on a new project that would eventually become Starblazer II, intending to improve on the limitations we had run into with the first game. The primary goal this time was to move away from 2D scaled vectors into full 3D rendering - as had been difficult previously. There were several techniques used for this:
 * 32-bit fixed point numbers proved much easier to perform arithmetic on when lacking a floating point unit. Coordinates were represented as triples of fixed-point numbers with 16 bit integer and fractional parts.
@@ -38,19 +38,17 @@ FIXED fixed_mul(FIXED a, FIXED b) {
 ```
 * Use of a combined rotation matrix rather than individual matrices for rotation about each axis made the computation much quicker.
 
-`combined matmul`
+![sb2_matmul.png](sb2_matmul.png)
 
-`Early SB2 3D`
+![sb2_wireframe.png](sb2_wireframe.png)
 
 As seen in this image, the 3D graphics we achieved were ultimately entirely wireframed. The camera could rotate through pitch, yaw and roll; this would then rotate all displayed points by the produced rotiation matrix, then project them into the 2D plane of the screen and draw lines between the points of each 3D polygon.
 
 We also experimented with multiplayer functionality that allowed two players to fight each other by connecting machines with a null-modem serial cable and using the serial ports on each computer (obviously rare nowadays, but on the old hardware being targeted this was a common feature). This, of course, required code to handle synchronizing the game state between the two players. Although establishing a stable connection initially was difficult, the serial multiplayer system was eventually developed to the point where it could be used to demo the game to others, by having them play each other in a two-player match.
 
-`Multiplayer SB2`
+![sb2_multi.png](sb2_multi.png)
 
-A major flaw with our approach to 3D graphics in general surfaced when we started exploring the dynamics of player motion in the multiplayer version of the game, however. We had used, as mentioned earlier, a triplet of Euler angles (pitch, yaw, roll) to encode the angle that an object, including the player, was facing. Euler angles are susceptible to [gimbal lock](https://en.wikipedia.org/wiki/Gimbal_lock), in which a rotational state is reached where two different angles produce the same effect on an object's orientation:
-
-`Gimbal lock`
+A major flaw with our approach to 3D graphics in general surfaced when we started exploring the dynamics of player motion in the multiplayer version of the game, however. We had used, as mentioned earlier, a triplet of Euler angles (pitch, yaw, roll) to encode the angle that an object, including the player, was facing. Euler angles are susceptible to [gimbal lock](https://en.wikipedia.org/wiki/Gimbal_lock), in which a rotational state is reached where two different angles produce the same effect on an object's orientation.
 
 This made it difficult to freely maneuver the player's spaceship - when they approached either the north or south "pole" of their rotation, a user would have to adjust their controls more and more. This occurs because rotations are applied sequentially - first (for instance) a point is rotated about the z-axis, then the y-axis and finally the x-axis. While the x-axis of rotation is transformed according to the z-axis rotation, the opposite is not true, as matrix multiplication is not commutative. 
 
@@ -60,14 +58,15 @@ In addition to rewriting the game, we also restructured it to be more modular. M
 
 While rewriting the game from the ground up, we hit upon a solution to the gimbal lock problem from earlier - [quaternions for spatial rotation](https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation). A quaternion is a mathematical object similar to a complex number, but with a vector imaginary part `bi + cj + dk` instead of a scalar `bi`. They also obey the law that `i^2 = j^2 = k^2 = ijk = -1`. 
 
-`quat mul`
+![sb2_quat.png](sb2_quat.png)
 
 Quaternions of magnitude one - unit quaternions - efficiently (with only 4 variables, as opposed to nine for a rotation matrix) represent 3D spatial rotations. They can also be composed (i.e. multiplied) more efficiently than matrices can, making them perfect to represent a rotation state in a game like Starblazer II. Specifically, each frame of gameplay, the current rotation is stored as a quaternion, and adjusted by a small step - say, 0.1 degrees pitch - based on how the player chooses to rotate their camera. Since only one rotation is performed at once, the ordering problem of gimbal lock is avoided.
 
 We also decided to enhance the game visuals. While [2D triangle fill operations](http://www.sunshine2k.de/coding/java/TriangleRasterization/TriangleRasterization.html) are more time-consuming than simple Bresenham line drawing, it's obviously more visually interesting to see flat-shaded polygonal graphics than simple wireframes. In order to prevent back polygons from drawing over front polygons, we sorted them by z-coordinate relative to the camera and processed them in that order. In order to create a better visual impression of depth, we incorporated a directional [flat-shading](https://en.wikipedia.org/wiki/Shading#Flat_shading) lighting system. In this system, each polygon's color was modified by an illumination level, computed based on the dot product between the normal vector to the polygon and the vector between its center and the camera position.
 
-`snazzy SB2 images, they look awesome don't they`
-`have several of them.`
+![sb2_demo1.png](sb2_demo1.png)
+
+![sb2_demo2.png](sb2_demo2.png)
 
 ## SuperNova 8000 - Custom 8-bit computer constructed on breadboard and PCB
 
