@@ -42,7 +42,7 @@ FIXED fixed_mul(FIXED a, FIXED b) {
 
 ![sb2_wireframe.png](sb2_wireframe.png)
 
-As seen in this image, the 3D graphics we achieved were ultimately entirely wireframed. The camera could rotate through pitch, yaw and roll; this would then rotate all displayed points by the produced rotiation matrix, then project them into the 2D plane of the screen and draw lines between the points of each 3D polygon.
+As seen in this image, the 3D graphics we achieved were ultimately entirely wireframed. The camera could rotate through pitch, yaw and roll; this would then rotate all displayed points by the produced rotation matrix, then project them into the 2D plane of the screen and draw lines between the points of each 3D polygon.
 
 We also experimented with multiplayer functionality that allowed two players to fight each other by connecting machines with a null-modem serial cable and using the serial ports on each computer (obviously rare nowadays, but on the old hardware being targeted this was a common feature). This, of course, required code to handle synchronizing the game state between the two players. Although establishing a stable connection initially was difficult, the serial multiplayer system was eventually developed to the point where it could be used to demo the game to others, by having them play each other in a two-player match.
 
@@ -88,11 +88,11 @@ This allowed me to assemble 6502 assembly using `ca65`, flash it to the EEPROM a
 
 ![Datasheet of 65C02 chip, screenshot](ic_datasheets.png)
 
-It took a few days to construct and debug the breadboard prototype, but it eventually worked:
+It took a few days to construct and debug an initial breadboard prototype, but it eventually worked:
 
 ![SN8K assembled on breadboard and labeled](sn8k_breadboard.png)
 
-The 8-bit register (labeled as "Flip flops") can be accessed by writes to the upper half of memory (addresses `$8000-$FFFF`, where the EEPROM is accessed through reads), and in this case holds the value `$55` that was written through code.
+The 8-bit register (labeled as "Flip flops") can be accessed by writes to the upper half of memory (addresses `$8000-$FFFF`, where the EEPROM is accessed through reads), and in this case holds the value `$01` that was written via code.
 
 In order to demonstrate that this simple design could perform computation, I wrote a proof-of-concept program that checks if numbers are prime:
 ```
@@ -202,6 +202,51 @@ The design mostly worked; however, I had inadvertently mapped the 16 registers u
 
 ![Revision 2 KiCad PCB view](sn8k_pcbnew_rev2.png)
 
+## SNES Hardware Repair Project
+
+After I received a non-functional Super Nintendo Entertainment System (video game console) from a friend, I set out to use my technical knowledge to repair it. The workings of the system are extensively documented, as are the games that run on it, so this was feasible.
+
+When I initially tried to load a game using it - in this case, the 1994 game *Donkey Kong Country* - I was met with only a black screen, which could imply a catastrophic failure that can't be recovered. For instance, fried components might not exist on the market anymore, and transistor level damage is completely impossible to repair. However, given that the system had worked previously, I wanted to look further into it. Sure enough, the related *Donkey Kong Country 2* gave me different results:
+
+![Anti-piracy screen from DKC2](snes_dkc2.png)
+
+Clearly, the CPU, RAM and graphics hardware have at least minimal functionality, and no essential components are totally destroyed. The conditions under which this "anti-piracy" screen is displayed can be found from a [disassembly of the game](https://github.com/p4plus2/DKC2-disassembly/tree/master): 
+```
+	REP #$20                    ;$808436   |\ Test that SRAM is present
+	LDA.l sram_base	            ;$808438   | |
+	INC A			            ;$80843C   | |
+	STA.l sram_base	            ;$80843D   | |
+	CMP.l sram_base				;$808441   | |
+	BNE .prepare_anti_piracy	;$808445   |/ Otherwise trigger anti piracy
+	DEC A					    ;$808447   |\ Restore byte modified
+	STA.l sram_base				;$808448   |/
+```
+One of these conditions is that the save data RAM chip (SRAM) is present. The save data memory area is located at memory address `$B06000`, while the code above is located around memory address `$808436`. Therefore, a hardware fault in the upper address pins A22-A20 would allow code at `$808436` to execute, while accesses to memory at `$B06000` fail. Testing this hypothesis, I removed and cleaned the [cartridge connector](https://snes.nesdev.org/wiki/Cartridge_connector) (the adapter that the game uses to communicate with the console), and used a continuity tester to confirm that all pins were functional.
+
+Unfortunately, this did not solve the problem. I attempted to use electrical tape to "mask" off pins on the connector to determine if a fault in any of these pins (here simulated using the electrical tape) resulted in the same effect as I observed, but it became clear that the issue was not a simple continuity issue, but instead something more difficult to resolve.
+
+The next step was to observe the workings of the system at a CPU level and note any discrepancies. To this end, I purchased a logic analyzer - essentially an oscilloscope specifically intended for measuring 5V logic signals. Wires connected to the logic analyzer could be held in place by pressure from the connector, allowing me to "hook in" to the communication between the game and console:
+
+![Hooking in to the cartridge connector with a logic analyzer](snes_hookin.png)
+
+I could now record the bytes that were being read, written and executed by the CPU (more specifically, a 65816 running at 3.58MHz) by logging the contents of the address bus. The logic analyzer was limited to eight digital channels, while the system had 24 address pins, 8 data pins and several other control signals that were necessary for discerning the operation of the CPU - clock and read/write signals, for instance. Thus, it was necessary to record data over several runs and match it up:
+
+![One run of the logic analyzer](snes_saleae1.png)
+
+![Another logic analyzer run, but matched up to the one from before](snes_saleae2.png)
+
+I determined that at 121.024958 milliseconds after the RESET button was released, a given code sequence reliably executes, and I began my analysis there.
+![Annotated list of CPU instructions executed by the SNES](snes_instructions.png)
+
+As was determined from the logic analyzer traces (green cells in the listing representing bus values that were confirmed by the logic analyzer), the CPU executes up to the `CMP.l sram_base` instruction detailed above without any irregularities. The values read from memory are consistent with bytes that would cause the `BNE` to *not* be taken - that is, the piracy check passing and the game starting.
+At that point, inspection of the trace doesn't show the CPU executing the `BNE` instruction yet. A period of a few CPU cycles passes where the bus contents aren't well defined, but contain spikes shorter than 1 CPU cycle such as these (which were also occasionally observed earlier):
+
+![A logic analyzer trace with a spike in it](snes_spikes.png)
+
+After this period of time, the CPU resumes execution consistent with the `BNE` *being taken*. Thus, either the values read from memory were corrupted somehow, or during this anomalous period, the register/flag contents were changed.
+
+This project is still ongoing, and I am still trying to determine the cause for the corruption of register values during this period of execution time. In the future, I plan to compare the execution path taken by the broken machine to that of a fully functional one, profiled using the same technique. This will allow me to determine if the spikes are due to noise within the logic analyzer contacts or faulty console components - e.g. dried-out capacitors, as is possible in 1990s-era hardware.
+
 ## Brimstone: Game engine for NES for 32KB development
 
 The NES was a video game system that first released in 1983 in Japan. The first games developed for it were limited to 32 kilobytes of code space. I developed a game engine that ran under this same limitation, both to gain an appreciation for the history of computing and learn how to work under constrained environments, like those present in embedded systems. 
@@ -253,46 +298,3 @@ The final engine uses about 8 kilobytes of space. This leaves the remaining 24 k
 The development, and debugging, of the game engine, was supported greatly by the development tools of the NES emulator, in this case a program called Mesen, that was used to test the engine. Mesen supplies a large amount of debug/technical information that can be used to analyze program behavior and optimize performance. While the underlying system is obviously quite different, this information is presented in a structure very similar to that presented by modern analysis tools, such as `gdb` or `gprof`:
 
 ![Mesen debug windows to analyze performance](brimstone2.png)
-
-## SNES Hardware Repair Project
-
-After I received a non-functional Super Nintendo Entertainment System (video game console) from a friend, I set out to use my technical knowledge to repair it. The workings of the system are extensively documented, as are the games that run on it, so this was feasible.
-
-When I initially tried to load a game using it - in this case, the 1994 game *Donkey Kong Country* - I was met with only a black screen, which could imply a catastrophic failure that can't be recovered. For instance, fried components might not exist on the market anymore, and transistor level damage is completely impossible to repair. However, given that the system had worked previously, I wanted to look further into it. Sure enough, the related *Donkey Kong Country 2* gave me different results:
-
-![Anti-piracy screen from DKC2](snes_dkc2.png)
-
-Clearly, the CPU, RAM and graphics hardware have at least minimal functionality, and no essential components are totally destroyed. The conditions under which this "anti-piracy" screen is displayed can be found from a [disassembly of the game](https://github.com/p4plus2/DKC2-disassembly/tree/master): 
-```
-	REP #$20                    ;$808436   |\ Test that SRAM is present
-	LDA.l sram_base	            ;$808438   | |
-	INC A			            ;$80843C   | |
-	STA.l sram_base	            ;$80843D   | |
-	CMP.l sram_base				;$808441   | |
-	BNE .prepare_anti_piracy	;$808445   |/ Otherwise trigger anti piracy
-	DEC A					    ;$808447   |\ Restore byte modified
-	STA.l sram_base				;$808448   |/
-```
-One of these conditions is that the save data RAM chip (SRAM) is present. The save data memory area is located at memory address `$B06000`, while the code above is located around memory address `$808436`. Therefore, a hardware fault in the upper address pins A22-A20 would allow code at `$808436` to execute, while accesses to memory at `$B06000` fail. Testing this hypothesis, I removed and cleaned the [cartridge connector](https://snes.nesdev.org/wiki/Cartridge_connector) (the adapter that the game uses to communicate with the console), and used a continuity tester to confirm that all pins were functional.
-
-Unfortunately, this did not solve the problem. I attempted to use electrical tape to "mask" off pins on the connector to determine if a fault in any of these pins (here simulated using the electrical tape) resulted in the same effect as I observed, but it became clear that the issue was not a simple continuity issue, but instead something more difficult to resolve.
-
-The next step was to observe the workings of the system at a CPU level and note any discrepancies. To this end, I purchased a logic analyzer - essentially an oscilloscope specifically intended for measuring 5V logic signals. Wires connected to the logic analyzer could be held in place by pressure from the connector, allowing me to "hook in" to the communication between the game and console:
-
-![Hooking in to the cartridge connector with a logic analyzer](snes_hookin.png)
-
-I could now record the bytes that were being read, written and executed by the CPU (more specifically, a 65816 running at 3.58MHz) by logging the contents of the address bus. The logic analyzer was limited to eight digital channels, while the system had 24 address pins, 8 data pins and several other control signals that were necessary for discerning the operation of the CPU - clock and read/write signals, for instance. Thus, it was necessary to record data over several runs and match it up:
-
-![One run of the logic analyzer](snes_saleae1.png)
-
-![Another logic analyzer run, but matched up to the one from before](snes_saleae2.png)
-
-I determined that at 121.024958 milliseconds after the RESET button was released, a given code sequence reliably executes, and I began my analysis there.
-![Annotated list of CPU instructions executed by the SNES](snes_instructions.png)
-
-As was determined from the logic analyzer traces (green cells in the listing representing bus values that were confirmed by the logic analyzer), the CPU executes up to the `CMP.l sram_base` instruction detailed above without any irregularities. The values read from memory are consistent with bytes that would cause the `BNE` to *not* be taken - that is, the piracy check passing and the game starting.
-At that point, inspection of the trace doesn't show the CPU executing the `BNE` instruction yet. A period of a few CPU cycles passes where the bus contents aren't well defined, but contain spikes shorter than 1 CPU cycle such as these (which were also occasionally observed earlier):
-
-![A logic analyzer trace with a spike in it](snes_spikes.png)
-
-After this period of time, the CPU resumes execution consistent with the `BNE` *being taken*. Thus, either the values read from memory were corrupted somehow, or during this anomalous period, the register/flag contents were changed.
